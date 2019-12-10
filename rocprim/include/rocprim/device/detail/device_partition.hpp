@@ -37,6 +37,10 @@
 #include "lookback_scan_state.hpp"
 #include "ordered_block_id.hpp"
 
+extern "C"
+{
+  void __builtin_amdgcn_s_sleep(int);
+}
 BEGIN_ROCPRIM_NAMESPACE
 
 namespace detail
@@ -305,7 +309,13 @@ auto partition_scatter(ValueType (&values)[ItemsPerThread],
         unsigned int selected_item_index = output_indices[i] - selected_prefix;
         unsigned int rejected_item_index = (item_index - selected_item_index) + selected_in_block;
         // index of item in scatter_storage
+	  __builtin_amdgcn_s_sleep(127);
+	  __builtin_amdgcn_s_sleep(127);
+
         unsigned int scatter_index = is_selected[i] ? selected_item_index : rejected_item_index;
+	  __builtin_amdgcn_s_sleep(127);
+	  __builtin_amdgcn_s_sleep(127);
+
         scatter_storage[scatter_index] = values[i];
     }
     ::rocprim::syncthreads(); // sync threads to reuse shared memory
@@ -316,13 +326,21 @@ auto partition_scatter(ValueType (&values)[ItemsPerThread],
         unsigned int item_index = (i * BlockSize) + flat_block_thread_id;
         unsigned int selected_item_index = item_index;
         unsigned int rejected_item_index = item_index - selected_in_block;
+	  __builtin_amdgcn_s_sleep(127);
+	  __builtin_amdgcn_s_sleep(127);
+
         // number of values rejected in previous blocks
         unsigned int rejected_prefix = (flat_block_id * items_per_block) - selected_prefix;
         // destination index of item scatter_storage[item_index] in output
+	  __builtin_amdgcn_s_sleep(127);
+	  __builtin_amdgcn_s_sleep(127);
+	
         OffsetType scatter_index = item_index < selected_in_block
             ? selected_prefix + selected_item_index
             : size - (rejected_prefix + rejected_item_index + 1);
 
+	  __builtin_amdgcn_s_sleep(127);
+	  __builtin_amdgcn_s_sleep(127);
         // last block can store only valid_in_last_block items
         if(!is_last_block || item_index < valid_in_last_block)
         {
@@ -477,7 +495,7 @@ void partition_kernel_impl(InputIterator input,
     value_type values[items_per_thread];
     bool is_selected[items_per_thread];
     offset_type output_indices[items_per_thread];
-
+    const char * blah;
     // Load input values into values
     bool is_last_block = flat_block_id == (number_of_blocks - 1);
     if(is_last_block) // last block
@@ -522,12 +540,22 @@ void partition_kernel_impl(InputIterator input,
     );
 
     // Convert true/false is_selected flags to 0s and 1s
+    __builtin_amdgcn_s_sleep(127);
+    __builtin_amdgcn_s_sleep(127);
+    
     #pragma unroll
     for(unsigned int i = 0; i < items_per_thread; i++)
     {
-        output_indices[i] = is_selected[i] ? 1 : 0;
+      __builtin_amdgcn_s_sleep(127);
+      __builtin_amdgcn_s_sleep(127);
+      //output_indices[i] = items_per_thread * i;
+      output_indices[i] = is_selected[i] ? 1 : 0;
+      __builtin_amdgcn_s_sleep(127);
+      __builtin_amdgcn_s_sleep(127);
     }
-
+    __builtin_amdgcn_s_sleep(127);
+    __builtin_amdgcn_s_sleep(127);
+    
     // Number of selected values in previous blocks
     offset_type selected_prefix = 0;
     // Number of selected values in this block
@@ -545,9 +573,15 @@ void partition_kernel_impl(InputIterator input,
                 storage.scan_offsets,
                 ::rocprim::plus<offset_type>()
             );
+	__builtin_amdgcn_s_sleep(127);
+	__builtin_amdgcn_s_sleep(127);
         if(flat_block_thread_id == 0)
         {
+	  __builtin_amdgcn_s_sleep(127);
+	  __builtin_amdgcn_s_sleep(127);
             offset_scan_state.set_complete(flat_block_id, selected_in_block);
+	  __builtin_amdgcn_s_sleep(127);
+	  __builtin_amdgcn_s_sleep(127);
         }
         ::rocprim::syncthreads(); // sync threads to reuse shared memory
     }
@@ -564,6 +598,8 @@ void partition_kernel_impl(InputIterator input,
             offset_scan_state,
             storage_prefix_op
         );
+	__builtin_amdgcn_s_sleep(127);
+	__builtin_amdgcn_s_sleep(127);
         block_scan_offset_type()
             .exclusive_scan(
                 output_indices,
@@ -572,10 +608,21 @@ void partition_kernel_impl(InputIterator input,
                 prefix_op,
                 ::rocprim::plus<offset_type>()
             );
-        ::rocprim::syncthreads(); // sync threads to reuse shared memory
+	__builtin_amdgcn_s_sleep(127);
+	__builtin_amdgcn_s_sleep(127);
+	__builtin_amdgcn_s_sleep(127);
+	
+	::rocprim::syncthreads(); // sync threads to reuse shared memory
 
+
+	__builtin_amdgcn_s_sleep(127);
+	__builtin_amdgcn_s_sleep(127);
         selected_in_block = prefix_op.get_reduction();
+	__builtin_amdgcn_s_sleep(127);
+	__builtin_amdgcn_s_sleep(127);
         selected_prefix = prefix_op.get_exclusive_prefix();
+	__builtin_amdgcn_s_sleep(127);
+	__builtin_amdgcn_s_sleep(127);
     }
 
     // Scatter selected and rejected values
@@ -587,6 +634,9 @@ void partition_kernel_impl(InputIterator input,
     );
 
     // Last block in grid stores number of selected values
+    __builtin_amdgcn_s_sleep(127);
+    __builtin_amdgcn_s_sleep(127);
+    
     if(flat_block_id == (number_of_blocks - 1) && flat_block_thread_id == 0)
     {
         selected_count_output[0] = selected_prefix + selected_in_block;
